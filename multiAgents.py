@@ -1,4 +1,5 @@
 from operator import itemgetter
+import time
 import traceback
 from Agents import Agent
 import util
@@ -132,6 +133,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
             return (score,action)
 
 
+
         "*** YOUR CODE HERE ***"
         (score,action) = minMaxValue(state,0)
         return action
@@ -151,8 +153,66 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
         You should keep track of alpha and beta in each node to be able to implement alpha-beta pruning.
         """
+        def minMaxValueWithAlphaBetaPruning(currentState,index,alpha,beta):
+            score = None
+            action = None
+
+            def getAgentIndex():
+                return index%currentState.getNumAgents()
+
+            def getDepth():
+                return int(index/currentState.getNumAgents())
+
+            def cutoffTest():
+                return currentState.isGameFinished() or getDepth() >= self.depth
+                
+            def isMaxAgent(agentIndex):
+                return agentIndex == 0
+            
+            def maxValue(currentState, alpha,beta):
+                value =  -1111111111
+                action = None
+                legalActions = currentState.getLegalActions(getAgentIndex())
+                for _action in legalActions:
+                    successor = currentState.generateSuccessor(getAgentIndex(),_action)
+                    _value = max(value, minMaxValueWithAlphaBetaPruning(successor,index+1,alpha,beta)[0])
+                    if(value != _value):
+                        value = _value
+                        action = _action 
+                    if(value > beta ):
+                        break
+                    alpha = max(value, alpha)
+                return (value,action)
+
+
+            def minValue(currentState, alpha,beta):
+                value =  +1111111111
+                action = None
+                legalActions = currentState.getLegalActions(getAgentIndex())                
+                for _action in legalActions:
+                    successor = currentState.generateSuccessor(getAgentIndex(),_action)
+                    _value = min(value, minMaxValueWithAlphaBetaPruning(successor,index+1,alpha,beta)[0])
+                    if(value != _value):
+                        value = _value
+                        action = _action 
+                    beta = min(value, beta)
+                return (value,action)
+
+            if(cutoffTest()):
+                score = self.evaluationFunction(currentState)
+                action = None
+            else:
+                if(isMaxAgent(getAgentIndex())):
+                    (score,action) = maxValue(currentState,alpha,beta)
+                else:
+                    (score,action) = minValue(currentState,alpha,beta)
+
+            return (score,action)
+
+
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        (score,action) = minMaxValueWithAlphaBetaPruning(gameState,0,-1111111111,+1111111111)
+        return action
         
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
@@ -165,13 +225,61 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
 
     def getAction(self, gameState):
         """
-        Returns the expectimax action using self.depth and self.evaluationFunction
+        Returns the minimax action using self.depth and self.evaluationFunction
 
-        All opponents should be modeled as choosing uniformly at random from their
-        legal moves.
+        You should keep track of alpha and beta in each node to be able to implement alpha-beta pruning.
         """
+        def exeptiMiniMax(currentState,index):
+            score = None
+            action = None
+
+            def getAgentIndex():
+                return index%currentState.getNumAgents()
+
+            def getDepth():
+                return int(index/currentState.getNumAgents())
+
+            def cutoffTest():
+                return currentState.isGameFinished() or getDepth() >= self.depth
+                
+            def isMaxAgent(agentIndex):
+                return agentIndex == 0
+            
+            def maxValue(currentState):
+                value =  -1111111111
+                action = None
+                legalActions = currentState.getLegalActions(getAgentIndex())
+                for _action in legalActions:
+                    successor = currentState.generateSuccessor(getAgentIndex(),_action)
+                    _value = max(value, exeptiMiniMax(successor,index+1)[0])
+                    if(value != _value):
+                        value = _value
+                        action = _action 
+                return (value,action)
+
+
+            def minValue(currentState):
+                legalActions = currentState.getLegalActions(getAgentIndex())        
+                successors = [(currentState.generateSuccessor(getAgentIndex(),_action),_action) for _action in legalActions]
+                scores = [(exeptiMiniMax(nextState,index+1)[0],_action) for (nextState,_action) in successors]
+                (value, action) = random.choice(scores)
+                return (value,action)
+
+            if(cutoffTest()):
+                score = self.evaluationFunction(currentState)
+                action = None
+            else:
+                if(isMaxAgent(getAgentIndex())):
+                    (score,action) = maxValue(currentState)
+                else:
+                    (score,action) = minValue(currentState)
+
+            return (score,action)
+
+
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        (score,action) = exeptiMiniMax(gameState,0)
+        return action
 
 
 def betterEvaluationFunction(currentGameState):
@@ -196,14 +304,102 @@ def betterEvaluationFunction(currentGameState):
     "*** YOUR CODE HERE ***"
 
     # parity
+    def parityHeuristicFunction():
+        maxScore = currentGameState.getScore(0)
+        minScores = sum(currentGameState.getScore()[1:])
+        _sum = maxScore + minScores
+        _minus = maxScore - minScores
+        return ((_minus/_sum))*100
 
     # corners
+    def cornersHeuristicFunction():
+        corners = currentGameState.getCorners()
+        maxCorners = 0
+        minCorners = 0
+        result = 0
+        for cornerValue in corners:
+            if(cornerValue == 0):
+                maxCorners =+1
+            elif(cornerValue>0):
+                minCorners =+1
+        _sum = maxCorners + minCorners
+        _minus = maxCorners - minCorners
+        if(_sum != 0):
+            result = ((_minus/_sum))*100
+        return result
+
 
     # mobility
-
+    def mobilityHeuristicFunction():
+        agentsMobilities = [len(currentGameState.getLegalActions(i)) for i in range(0,currentGameState.getNumAgents())]
+        maxMobility = agentsMobilities[0]
+        result = 0
+        minMobilities = sum(agentsMobilities[1:])
+        _sum = maxMobility + minMobilities
+        _minus = maxMobility - minMobilities
+        if(_sum != 0):
+            result = ((_minus/_sum))*100
+        return result
     # stability
-    
-    util.raiseNotDefined()
+    def stabilityHeuristicFunction():
+        def getAgentStablityValues():
+            def getAgentStablity(agentIndex,successors):
+                agentPieces = currentGameState.getPieces(agentIndex)
+                semiStables = {}
+                stables = set(agentPieces.copy())
+                nonStables = set({})
+                for nextState in successors:
+                    newPieces = set(nextState.getPieces(agentIndex))
+                    for (agentPiece) in agentPieces:
+                        if not (agentPiece) in newPieces:
+                            stables = stables - {agentPiece}
+                            if((agentPiece) in semiStables):
+                                semiStables[(agentPiece)] =  semiStables[(agentPiece)] + 1
+                            else:
+                                semiStables[(agentPiece)] = 1
+                for key in semiStables.keys():
+                    if(semiStables[key] >= int(len(agentPieces)/4))*3:
+                        nonStables.add(key)
+                return len(stables) - len(nonStables)
+            nextPlayerIndex = 1
+            result = []
+            legalActions = currentGameState.getLegalActions(nextPlayerIndex)
+            successors = [currentGameState.generateSuccessor(nextPlayerIndex,action) for action in legalActions]
+            for index in range(0,currentGameState.getNumAgents()):
+                result.append(getAgentStablity(index,successors))
+            return result
+
+
+
+        stablities = getAgentStablityValues()
+        maxStablity = stablities[0]
+        minStablities = sum(stablities[1:])
+
+        result = 0
+        _sum = (maxStablity) + (minStablities)
+        _minus = maxStablity - minStablities
+        if(_sum != 0):
+            result = ((_minus/_sum))*100
+        return result
+
+    cornersHeuristic = 0
+    parityHeuristic = 0
+    stabilityHeuristic = 0
+    mobilityHeuristic = 0
+
+    numberOfapturedSquares = sum(([len(currentGameState.getPieces(index)) for index in range(0,currentGameState.getNumAgents())]))
+
+    if (numberOfapturedSquares > 16):
+        parityHeuristic = 16 * parityHeuristicFunction()
+        stabilityHeuristic = 0
+    else:
+        parityHeuristicFunction = 4 * parityHeuristicFunction()
+        stabilityHeuristic = 6 * stabilityHeuristicFunction()
+
+    mobilityHeuristic = 8 * mobilityHeuristicFunction()
+    cornersHeuristic = 64 * cornersHeuristicFunction()
+    result = cornersHeuristic + parityHeuristic + stabilityHeuristic + mobilityHeuristic
+    return  result
 
 # Abbreviation
 better = betterEvaluationFunction
